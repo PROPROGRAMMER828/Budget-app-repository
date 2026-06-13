@@ -1,0 +1,32 @@
+class BudgetManager:
+    def __init__(self):
+        self.wydatki = []
+
+    def dodaj_wydatek(self, wydatek):
+        self.wydatki.append(wydatek)
+
+    def czysc_dane(self):
+        self.wydatki.clear()
+
+    def oblicz_sume_kategorii(self):
+        wynik = {}
+
+        for w in self.wydatki:
+            wynik[w.kategoria] = wynik.get(w.kategoria, 0) + w.kwota
+
+        return wynik
+
+    def wczytaj_z_excela(self, sciezka):
+        self.czysc_dane()
+
+        dane = pandas.read_excel(sciezka)
+
+        for _, row in dane.iterrows():
+            self.dodaj_wydatek(
+                Wydatek(
+                    row["Data"],
+                    row["Kategoria"],
+                    row["Kwota"],
+                    row["Opis"]
+                )
+            )
