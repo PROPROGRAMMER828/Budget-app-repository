@@ -1,0 +1,132 @@
+import sys
+import pandas
+
+from PyQt5.QtWidgets import *
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+
+
+class Wydatek:
+    def __init__(self, data, kategoria, kwota, opis):
+        self.data = data
+        self.kategoria = kategoria
+        self.kwota = kwota
+        self.opis = opis
+
+
+class BudgetManager:
+    def __init__(self):
+        self.wydatki = []
+
+    def dodaj_wydatek(self, wydatek):
+        self.wydatki.append(wydatek)
+
+    def czysc_dane(self):
+        self.wydatki.clear()
+
+    def oblicz_sume_kategorii(self):
+        wynik = {}
+
+        for w in self.wydatki:
+            wynik[w.kategoria] = wynik.get(w.kategoria, 0) + w.kwota
+
+        return wynik
+
+    def wczytaj_excela(self, sciezka):
+        self.czysc_dane()
+
+        dane = pandas.read_excel(sciezka)
+
+        for _, row in dane.iterrows():
+            self.dodaj_wydatek(
+                Wydatek(
+                    row["Data"],
+                    row["Kategoria"],
+                    row["Kwota"],
+                    row["Opis"]
+                )
+            )
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+
+        self.manager = BudgetManager()
+
+        self.setWindowTitle("Budżet domowy")
+        self.resize(900, 600)
+
+        widget = QWidget()
+        self.setCentralWidget(widget)
+
+        layout = QVBoxLayout()
+
+        button = QPushButton("Wczytaj plik Excel")
+        button.clicked.connect(self.wczytaj_plik)
+
+        self.table = QTableWidget()
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(
+            ["Data", "Kategoria", "Kwota", "Opis"]
+        )
+
+        self.figure = Figure()
+        self.canvas = FigureCanvas(self.figure)
+
+        layout.addWidget(button)
+        layout.addWidget(self.table)
+        layout.addWidget(self.canvas)
+
+        widget.setLayout(layout)
+
+    def wczytaj_plik(self):
+        sciezka, _ = QFileDialog.getOpenFileName(
+            self,
+            "Wybierz plik",
+            "",
+            "Excel Files (*.xlsx)"
+        )
+
+        if not sciezka:
+            return
+
+        try:
+            self.manager.wczytaj_z_excela(sciezka)
+
+            dane = self.manager.wydatki
+
+            self.table.setRowCount(len(dane))
+
+            for i, w in enumerate(dane):
+                self.table.setItem(i, 0, QTableWidgetItem(str(w.data)))
+                self.table.setItem(i, 1, QTableWidgetItem(w.kategoria))
+                self.table.setItem(i, 2, QTableWidgetItem(str(w.kwota)))
+                self.table.setItem(i, 3, QTableWidgetItem(w.opis))
+
+            self.figure.clear()
+
+            ax = self.figure.add_subplot(111)
+
+            suma = self.manager.oblicz_sume_kategorii()
+
+            ax.pie(
+                suma.values(),
+                labels=suma.keys(),
+                autopct="%1.1f%%"
+            )
+
+            ax.set_title("Wydatki wg kategorii")
+
+            self.canvas.draw()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Błąd", str(e))
+
+
+app = QApplication(sys.argv)
+
+window = MainWindow()
+window.show()
+
+sys.exit(app.exec_())
